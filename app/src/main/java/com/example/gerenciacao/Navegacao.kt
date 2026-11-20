@@ -30,9 +30,14 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.gerenciacao.R
 import com.example.gerenciacao.domain.model.EstadoSessao
+import com.example.gerenciacao.domain.model.Permissao
+import com.example.gerenciacao.ui.componentes.EstadoCarregando
+import com.example.gerenciacao.ui.componentes.EstadoErro
 import com.example.gerenciacao.ui.Cores
 import com.example.gerenciacao.ui.telas.*
 import com.example.gerenciacao.ui.viewmodel.AbrigoViewModel
+import com.example.gerenciacao.ui.viewmodel.AnimaisViewModel
+import com.example.gerenciacao.ui.viewmodel.FichaViewModel
 import com.example.gerenciacao.ui.viewmodel.AceitarConviteViewModel
 import com.example.gerenciacao.ui.viewmodel.CadastroViewModel
 import com.example.gerenciacao.ui.viewmodel.ConviteViewModel
@@ -57,13 +62,18 @@ object Rotas {
     const val ABRIGO = "abrigo"
     const val CONEXOES = "conexoes"
     const val FICHA = "ficha/{id}"
+    const val NOVA_FICHA = "nova_ficha"
+    const val EDITAR_FICHA = "editar_ficha/{id}"
     const val PARCERIAS = "parcerias"
     const val ADICIONAR_MEMBRO = "adicionar_membro"
     const val PERFIL_MEMBRO = "perfil_membro/{id}"
     const val EDITAR_MEMBRO = "editar_membro/{id}"
 
     /** Rota da ficha de um animal. */
-    fun ficha(id: Int) = "ficha/$id"
+    fun ficha(id: String) = "ficha/${Uri.encode(id)}"
+
+    /** Rota da edição de uma ficha. */
+    fun editarFicha(id: String) = "editar_ficha/${Uri.encode(id)}"
 
     /** Rota do perfil de um membro (o id vem da API e é codificado para ir na rota). */
     fun perfilMembro(id: String) = "perfil_membro/${Uri.encode(id)}"
@@ -108,6 +118,7 @@ fun GerenciaCaoApp() {
     val rotaAtual = entrada?.destination?.route
     var splashConcluida by remember { mutableStateOf(false) }
     val usuario = (sessao as? EstadoSessao.Logado)?.usuario
+    val podeEditarFichas = usuario?.pode(Permissao.EDITAR_PRONTUARIOS) == true
 
     // Navegação guiada pela sessão
     LaunchedEffect(sessao, rotaAtual, splashConcluida) {
@@ -197,10 +208,61 @@ fun GerenciaCaoApp() {
                 )
             }
             composable(Rotas.ANIMAIS) {
-                TelaAnimais(onConfig = irConfig, onAvatar = irPerfil, onAbrirFicha = { id -> nav.navigate(Rotas.ficha(id)) })
+                val vm = viewModelDoApp { AnimaisViewModel(it.animalRepository) }
+                val ui by vm.estado.collectAsStateWithLifecycle()
+                LaunchedEffect(Unit) { vm.carregar() }
+                TelaAnimais(
+                    estado = ui,
+                    podeCriar = podeEditarFichas,
+                    onConfig = irConfig,
+                    onAvatar = irPerfil,
+                    onAbrirFicha = { id -> nav.navigate(Rotas.ficha(id)) },
+                    onNovaFicha = { nav.navigate(Rotas.NOVA_FICHA) },
+                    onTentarNovamente = vm::carregar,
+                )
             }
-            composable(Rotas.FICHA, arguments = listOf(navArgument("id") { type = NavType.IntType })) { be ->
-                TelaFicha(id = be.arguments?.getInt("id") ?: 0, onVoltar = { nav.popBackStack() })
+            composable(Rotas.FICHA, arguments = listOf(navArgument("id") { type = NavType.StringType })) { be ->
+                val id = be.arguments?.getString("id").orEmpty()
+                val vm = viewModelDoApp { FichaViewModel(it.animalRepository) }
+                val ui by vm.estado.collectAsStateWithLifecycle()
+                LaunchedEffect(id) { vm.carregar(id) }
+                TelaFicha(
+                    estado = ui,
+                    podeEditar = podeEditarFichas,
+                    onVoltar = { nav.popBackStack() },
+                    onEditar = { nav.navigate(Rotas.editarFicha(id)) },
+                    onExcluir = { vm.remover(id) },
+                    onTentarNovamente = { vm.carregar(id) },
+                )
+            }
+            composable(Rotas.NOVA_FICHA) {
+                val vm = viewModelDoApp { FichaViewModel(it.animalRepository) }
+                val ui by vm.estado.collectAsStateWithLifecycle()
+                TelaFichaForm(
+                    estado = ui,
+                    inicial = null,
+                    onSalvar = { dados, microchip, peso, mudou -> vm.salvar(null, dados, microchip, peso, mudou) },
+                    onVoltar = { nav.popBackStack() },
+                )
+            }
+            composable(Rotas.EDITAR_FICHA, arguments = listOf(navArgument("id") { type = NavType.StringType })) { be ->
+                val id = be.arguments?.getString("id").orEmpty()
+                val vm = viewModelDoApp { FichaViewModel(it.animalRepository) }
+                val ui by vm.estado.collectAsStateWithLifecycle()
+                LaunchedEffect(id) { vm.carregar(id) }
+                val detalhe = ui.detalhe
+                if (detalhe == null) {
+                    Box(Modifier.fillMaxSize().statusBarsPadding()) {
+                        if (ui.carregando) EstadoCarregando() else EstadoErro(ui.erro ?: "Não foi possível carregar.", { vm.carregar(id) })
+                    }
+                } else {
+                    TelaFichaForm(
+                        estado = ui,
+                        inicial = detalhe.animal,
+                        onSalvar = { dados, microchip, peso, mudou -> vm.salvar(id, dados, microchip, peso, mudou) },
+                        onVoltar = { nav.popBackStack() },
+                    )
+                }
             }
             composable(Rotas.FINANCAS) { TelaFinancas(onConfig = irConfig, onAvatar = irPerfil) }
             composable(Rotas.AGENDA) {

@@ -1,6 +1,14 @@
 package com.example.gerenciacao.data.repository
 
 import com.example.gerenciacao.data.local.SessaoManager
+import com.example.gerenciacao.data.remote.AtualizarAnimalRequestDto
+import com.example.gerenciacao.data.remote.MudarStatusRequestDto
+import com.example.gerenciacao.data.remote.NovoAnimalRequestDto
+import com.example.gerenciacao.data.remote.nascimentoPorIdade
+import com.example.gerenciacao.domain.model.Animal
+import com.example.gerenciacao.domain.model.AnimalDetalhe
+import com.example.gerenciacao.domain.model.DadosAnimal
+import com.example.gerenciacao.domain.repository.AnimalRepository
 import com.example.gerenciacao.data.remote.AbrigoDto
 import com.example.gerenciacao.data.remote.AceitarConviteRequestDto
 import com.example.gerenciacao.data.remote.ApiService
@@ -110,4 +118,39 @@ class EquipeRepositoryImpl(private val api: ApiService, private val json: Json) 
 /** Implementação de [AbrigoRepository]. */
 class AbrigoRepositoryImpl(private val api: ApiService, private val json: Json) : AbrigoRepository {
     override suspend fun buscar(): Resultado<Abrigo> = chamarApi(json) { api.abrigo().paraDominio() }
+}
+
+/** Implementação de [AnimalRepository]. */
+class AnimalRepositoryImpl(private val api: ApiService, private val json: Json) : AnimalRepository {
+
+    override suspend fun listar(): Resultado<List<Animal>> =
+        chamarApi(json) { api.animais(pagina = 0, tamanho = 100).itens.map { it.paraDominio() } }
+
+    override suspend fun detalhe(id: String): Resultado<AnimalDetalhe> = chamarApi(json) { api.animal(id).paraDominio() }
+
+    override suspend fun criar(dados: DadosAnimal): Resultado<Animal> = chamarApi(json) {
+        api.criarAnimal(
+            NovoAnimalRequestDto(
+                nome = dados.nome.trim(), genero = dados.genero.name, especie = dados.especie.name, raca = dados.raca.trim().ifEmpty { "SRD" },
+                nascimento = nascimentoPorIdade(dados.idadeMeses), castrado = dados.castrado, porte = dados.porte.name, status = dados.status.name,
+                microchip = dados.microchip?.trim()?.ifEmpty { null }, pesoKg = dados.pesoKg,
+                caracteristicas = dados.caracteristicas.trim(), descricao = dados.descricao.trim(),
+            ),
+        ).paraDominio()
+    }
+
+    override suspend fun atualizar(id: String, dados: DadosAnimal, statusMudou: Boolean): Resultado<Animal> = chamarApi(json) {
+        val atualizado = api.atualizarAnimal(
+            id,
+            AtualizarAnimalRequestDto(
+                nome = dados.nome.trim(), genero = dados.genero.name, especie = dados.especie.name, raca = dados.raca.trim().ifEmpty { "SRD" },
+                nascimento = nascimentoPorIdade(dados.idadeMeses), castrado = dados.castrado, porte = dados.porte.name,
+                microchip = dados.microchip?.trim()?.ifEmpty { null }, pesoKg = dados.pesoKg,
+                caracteristicas = dados.caracteristicas.trim(), descricao = dados.descricao.trim(),
+            ),
+        )
+        (if (statusMudou) api.statusAnimal(id, MudarStatusRequestDto(dados.status.name)) else atualizado).paraDominio()
+    }
+
+    override suspend fun remover(id: String): Resultado<Unit> = chamarApi(json) { api.removerAnimal(id) }
 }

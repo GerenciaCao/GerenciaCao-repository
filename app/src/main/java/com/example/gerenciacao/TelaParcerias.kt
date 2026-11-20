@@ -7,13 +7,20 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Pets
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.ui.draw.alpha
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -94,7 +101,7 @@ fun TelaParcerias(onVoltar: () -> Unit) {
                     }
                 }
             }
-            item { BannerDestaque(moeda.format(69.90)) }
+            item { CarrosselBanners(moeda.format(69.90)) }
 
             if (aba != AbaParceria.SERVICOS && produtosFiltrados.isNotEmpty()) {
                 item { TituloSecaoParceria("Produtos Friday: Ofertas da semana") }
@@ -120,10 +127,9 @@ private fun TituloSecaoParceria(texto: String, espacoExtra: Boolean = false) {
 }
 
 @Composable
-private fun BannerDestaque(preco: String) {
+private fun BannerDestaque(preco: String, modificador: Modifier = Modifier) {
     Box(
-        modifier = Modifier
-            .padding(horizontal = 20.dp)
+        modifier = modificador
             .fillMaxWidth()
             .height(150.dp)
             .clip(RoundedCornerShape(12.dp))
@@ -189,5 +195,84 @@ private fun LinhaCards(
                 }
             }
         }
+    }
+}
+
+// ---------------------------------------------------------------- Carrossel de banners
+
+/** Banner promocional do carrossel (dados de exemplo; depois virão do endpoint /api/parcerias?destaque=true). */
+private data class BannerPromo(val titulo: String, val desconto: String, @DrawableRes val foto: Int, val fundo: Color)
+
+/**
+ * Carrossel de banners que passa sozinho a cada 3,5 s (em loop), com o próximo banner aparecendo ao lado.
+ * O auto-avanço pausa enquanto a pessoa arrasta com o dedo. A primeira página é o banner de preço; as outras, promoções.
+ */
+@Composable
+private fun CarrosselBanners(preco: String) {
+    val promos = remember {
+        listOf(
+            BannerPromo("Farmácia\npara Cães", "-40% OFF", R.drawable.pet_gabi, Cores.Laranja),
+            BannerPromo("Alimentos\npara Gatos", "-20% OFF", R.drawable.pet_oreo, Cores.Azul),
+            BannerPromo("Brinquedos\npara Cães", "-30% OFF", R.drawable.collie_osso, Cores.Laranja),
+            BannerPromo("Higiene\nAnimal", "-40% OFF", R.drawable.pets_login, Cores.Azul),
+        )
+    }
+    val total = promos.size + 1
+    val repeticoes = 1000 // "loop infinito": muitas cópias da lista, começando no meio
+    val estado = rememberPagerState(initialPage = total * (repeticoes / 2)) { total * repeticoes }
+    val arrastando by estado.interactionSource.collectIsDraggedAsState()
+
+    LaunchedEffect(estado, arrastando) {
+        while (!arrastando) {
+            delay(3500)
+            estado.animateScrollToPage(estado.currentPage + 1)
+        }
+    }
+
+    Column {
+        HorizontalPager(
+            state = estado,
+            contentPadding = PaddingValues(horizontal = 20.dp),
+            pageSpacing = 12.dp,
+        ) { pagina ->
+            val indice = pagina % total
+            if (indice == 0) BannerDestaque(preco, Modifier.fillMaxWidth()) else BannerPromoCard(promos[indice - 1])
+        }
+        Row(Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            repeat(total) { i ->
+                Box(Modifier.size(6.dp).clip(CircleShape).background(if (i == estado.currentPage % total) Cores.Laranja else Cores.Laranja.copy(alpha = 0.3f)))
+            }
+        }
+    }
+}
+
+/** Card de promoção: título e etiqueta de desconto à esquerda, foto do bichinho à direita. */
+@Composable
+private fun BannerPromoCard(b: BannerPromo) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(150.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(b.fundo)
+            .clickable { /* TODO: abrir a oferta do parceiro (Intent ACTION_VIEW) */ },
+    ) {
+        Column(Modifier.align(Alignment.CenterStart).padding(start = 16.dp)) {
+            Text(b.titulo, fontSize = 22.sp, lineHeight = 25.sp, fontWeight = FontWeight.ExtraBold, color = if (b.fundo == Cores.Laranja) Cores.Marrom else Cores.AzulTitulo)
+            Text(
+                b.desconto,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                modifier = Modifier.padding(top = 10.dp).clip(RoundedCornerShape(50)).background(if (b.fundo == Cores.Laranja) Cores.AzulTitulo else Cores.Laranja).padding(horizontal = 12.dp, vertical = 5.dp),
+            )
+        }
+        Image(
+            painter = painterResource(b.foto),
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            alignment = Alignment.BottomEnd,
+            modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(150.dp).padding(end = 8.dp, top = 8.dp),
+        )
     }
 }

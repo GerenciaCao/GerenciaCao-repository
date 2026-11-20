@@ -24,6 +24,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.gerenciacao.domain.model.Animal
+import com.example.gerenciacao.domain.model.StatusAnimal
 import com.example.gerenciacao.ui.*
 
 /** Faixas de idade em anos completos. "6-10" vai até 9 anos e 11 meses; "10+" começa em 10 anos. */
@@ -41,7 +43,7 @@ data class CriteriosFiltro(
 ) {
     fun aceita(a: Animal): Boolean =
         (status == null || a.status == status) &&
-                (faixasIdade.isEmpty() || faixasIdade.any { a.idadeMeses in it.meses }) &&
+                (faixasIdade.isEmpty() || (a.idadeMeses?.let { m -> faixasIdade.any { m in it.meses } } ?: false)) &&
                 (femea == null || a.femea == femea)
 }
 
@@ -103,7 +105,7 @@ fun FiltroAnimais(
                     .padding(horizontal = 24.dp),
             ) {
                 TituloSecaoFiltro("Status do Animal")
-                StatusAnimal.values().forEach { s ->
+                StatusAnimal.values().filter { it != StatusAnimal.ADOTADO }.forEach { s ->
                     OpcaoRadio(s.rotulo, status == s) { status = if (status == s) null else s }
                 }
 

@@ -25,6 +25,14 @@ object Validadores {
         else -> null
     }
 
+    /** Confere os campos obrigatórios da ficha do animal. */
+    fun validarAnimal(nome: String, microchip: String, pesoTexto: String): String? = when {
+        nome.isBlank() -> "Informe o nome do bichinho."
+        microchip.isNotBlank() && !Regex("^\\d{15}$").matches(microchip.trim()) -> "O microchip tem 15 números."
+        pesoTexto.isNotBlank() && pesoTexto.replace(',', '.').toDoubleOrNull()?.let { it >= 0 } != true -> "Peso inválido."
+        else -> null
+    }
+
     /** Confere os dados de um novo membro. */
     fun validarNovoMembro(nome: String, email: String, temCargo: Boolean): String? = when {
         nome.isBlank() -> "Informe o nome."
