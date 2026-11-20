@@ -43,3 +43,21 @@ interface EquipeRepository {
 interface AbrigoRepository {
     suspend fun buscar(): Resultado<Abrigo>
 }
+
+/** Contrato das fichas dos bichinhos. */
+interface AnimalRepository {
+    /** Animais ativos do abrigo (até 100). */
+    suspend fun listar(): Resultado<List<com.example.gerenciacao.domain.model.Animal>>
+
+    /** Ficha completa com vacinas e histórico. */
+    suspend fun detalhe(id: String): Resultado<com.example.gerenciacao.domain.model.AnimalDetalhe>
+
+    /** Cria uma ficha. */
+    suspend fun criar(dados: com.example.gerenciacao.domain.model.DadosAnimal): Resultado<com.example.gerenciacao.domain.model.Animal>
+
+    /** Edita uma ficha; se [statusMudou], também atualiza a situação. */
+    suspend fun atualizar(id: String, dados: com.example.gerenciacao.domain.model.DadosAnimal, statusMudou: Boolean): Resultado<com.example.gerenciacao.domain.model.Animal>
+
+    /** Apaga a ficha. */
+    suspend fun remover(id: String): Resultado<Unit>
+}

@@ -6,6 +6,7 @@ import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.Path
+import retrofit2.http.Query
 
 /** Todas as rotas da API do GerenciaCão usadas pelo app (Retrofit gera a implementação). */
 interface ApiService {
@@ -21,4 +22,11 @@ interface ApiService {
     @DELETE("api/equipe/{id}") suspend fun removerMembro(@Path("id") id: String)
 
     @GET("api/abrigo") suspend fun abrigo(): AbrigoDto
+
+    @GET("api/animais") suspend fun animais(@Query("pagina") pagina: Int, @Query("tamanho") tamanho: Int): PaginaDto<AnimalDto>
+    @GET("api/animais/{id}") suspend fun animal(@Path("id") id: String): AnimalDetalheDto
+    @POST("api/animais") suspend fun criarAnimal(@Body corpo: NovoAnimalRequestDto): AnimalDto
+    @PUT("api/animais/{id}") suspend fun atualizarAnimal(@Path("id") id: String, @Body corpo: AtualizarAnimalRequestDto): AnimalDto
+    @PUT("api/animais/{id}/status") suspend fun statusAnimal(@Path("id") id: String, @Body corpo: MudarStatusRequestDto): AnimalDto
+    @DELETE("api/animais/{id}") suspend fun removerAnimal(@Path("id") id: String)
 }

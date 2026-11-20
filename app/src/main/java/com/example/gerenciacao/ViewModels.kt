@@ -11,6 +11,10 @@ import com.example.gerenciacao.GerenciaCaoApplication
 import com.example.gerenciacao.di.AppContainer
 import com.example.gerenciacao.domain.Resultado
 import com.example.gerenciacao.domain.model.Abrigo
+import com.example.gerenciacao.domain.model.Animal
+import com.example.gerenciacao.domain.model.AnimalDetalhe
+import com.example.gerenciacao.domain.model.DadosAnimal
+import com.example.gerenciacao.domain.repository.AnimalRepository
 import com.example.gerenciacao.domain.model.AtualizacaoMembro
 import com.example.gerenciacao.domain.model.EstadoSessao
 import com.example.gerenciacao.domain.model.Membro
@@ -229,6 +233,80 @@ class AbrigoViewModel(private val repo: AbrigoRepository) : ViewModel() {
             when (val r = repo.buscar()) {
                 is Resultado.Sucesso -> _estado.value = UiAbrigo(abrigo = r.dados)
                 is Resultado.Erro -> _estado.update { it.copy(carregando = false, erro = r.erro.textoParaUsuario()) }
+            }
+        }
+    }
+}
+
+// ------------------------------------------------------------------ Animais
+
+/** Estado da lista de animais. */
+data class UiAnimais(val carregando: Boolean = false, val animais: List<Animal> = emptyList(), val erro: String? = null)
+
+/** Lista de animais do abrigo. Os filtros (espécie, busca, painel de filtro) são aplicados na tela sobre esta lista. */
+class AnimaisViewModel(private val repo: AnimalRepository) : ViewModel() {
+    private val _estado = MutableStateFlow(UiAnimais())
+    val estado: StateFlow<UiAnimais> = _estado.asStateFlow()
+
+    /** (Re)carrega os animais; mantém a lista antiga na tela enquanto atualiza. */
+    fun carregar() {
+        _estado.update { it.copy(carregando = true, erro = null) }
+        viewModelScope.launch {
+            when (val r = repo.listar()) {
+                is Resultado.Sucesso -> _estado.value = UiAnimais(animais = r.dados)
+                is Resultado.Erro -> _estado.update { it.copy(carregando = false, erro = r.erro.textoParaUsuario()) }
+            }
+        }
+    }
+}
+
+/** Estado da ficha (ver, criar, editar e apagar). */
+data class UiFicha(
+    val carregando: Boolean = false,
+    val detalhe: AnimalDetalhe? = null,
+    val erro: String? = null,
+    val processando: Boolean = false,
+    val erroAcao: String? = null,
+    val salvo: Boolean = false,
+    val removido: Boolean = false,
+)
+
+/** Ficha individual e formulário de ficha. */
+class FichaViewModel(private val repo: AnimalRepository) : ViewModel() {
+    private val _estado = MutableStateFlow(UiFicha())
+    val estado: StateFlow<UiFicha> = _estado.asStateFlow()
+
+    /** Carrega a ficha completa. */
+    fun carregar(id: String) {
+        _estado.update { it.copy(carregando = true, erro = null) }
+        viewModelScope.launch {
+            when (val r = repo.detalhe(id)) {
+                is Resultado.Sucesso -> _estado.update { it.copy(carregando = false, detalhe = r.dados) }
+                is Resultado.Erro -> _estado.update { it.copy(carregando = false, erro = r.erro.textoParaUsuario()) }
+            }
+        }
+    }
+
+    /** Cria (id nulo) ou edita a ficha. [peso] e [microchip] vêm como texto do formulário. */
+    fun salvar(id: String?, dados: DadosAnimal, microchip: String, pesoTexto: String, statusMudou: Boolean) {
+        Validadores.validarAnimal(dados.nome, microchip, pesoTexto)?.let { msg -> _estado.update { it.copy(erroAcao = msg) }; return }
+        _estado.update { it.copy(processando = true, erroAcao = null) }
+        viewModelScope.launch {
+            val r = if (id == null) repo.criar(dados) else repo.atualizar(id, dados, statusMudou)
+            when (r) {
+                is Resultado.Sucesso -> _estado.update { it.copy(processando = false, salvo = true) }
+                is Resultado.Erro -> _estado.update { it.copy(processando = false, erroAcao = r.erro.textoParaUsuario()) }
+            }
+        }
+    }
+
+    /** Apaga a ficha. */
+    fun remover(id: String) {
+        _estado.update { it.copy(processando = true, erroAcao = null) }
+        viewModelScope.launch {
+            when (val r = repo.remover(id)) {
+                is Resultado.Sucesso -> _estado.update { it.copy(processando = false, removido = true) }
+                is Resultado.Erro -> _estado.update { it.copy(processando = false, erroAcao = r.erro.textoParaUsuario()) }
             }
         }
     }
